@@ -1,0 +1,46 @@
+function Main.main 1
+call SquareGame.new 0
+push local 0
+pop local 0
+call SquareGame.run 0
+pop local 0
+call SquareGame.dispose 0
+push constant 0
+return
+function Main.more 3
+push constant 0
+if-goto IFFAILEDLABEL
+push local 2
+push constant 0
+push local 2
+push constant 1
+push local 3
+add
+push local 3
+push constant 2
+add
+pop pointer 1
+push that 0
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+goto IFENDLABEL
+label IFFAILEDLABEL
+push local 0
+push local 1
+neg
+call Math.mul
+push local 0
+push local 1
+push constant 2
+neg
+call Math.div
+push local 1
+push local 0
+push local 1
+or
+push local 0
+label IFENDLABEL
+push constant 0
+return

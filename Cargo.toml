@@ -1,0 +1,13 @@
+[package]
+name = "jack_compiler"
+version = "0.1.0"
+authors = ["xxrl <837951112@qq.com>"]
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+lazy_static = "1.4.0"
+# trees = "0.3.0"
+indextree = "4.3.1"
+clap = { version = "3.0.0-rc.7", features = ["derive"] }
