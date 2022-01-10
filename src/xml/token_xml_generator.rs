@@ -1,5 +1,5 @@
 use crate::common::{new_output, panic_writer, OutputTarget};
-use crate::parser::Parser;
+use crate::parser::jack::Parser;
 use crate::token::Token;
 use crate::xml::{translate, RAIIWriter};
 

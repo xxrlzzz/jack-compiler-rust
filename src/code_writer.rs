@@ -13,7 +13,11 @@ pub struct CodeWriter {
   vm_writer: VmWriter,
   class_name: Option<String>,
   block_return: bool,
+
+  if_count: usize,
+  while_count: usize,
 }
+
 impl CodeWriter {
   pub fn new(source: &str, op_tree: OperationTree) -> Self {
     Self {
@@ -23,6 +27,8 @@ impl CodeWriter {
       vm_writer: VmWriter::new(source),
       class_name: None,
       block_return: false,
+      if_count: 0,
+      while_count: 0,
     }
   }
 
@@ -52,12 +58,14 @@ impl CodeWriter {
           (child.next_sibling(), child.get())
         };
         match child_data.clone() {
-          OperationType::ClassVarDec(scope) => self.handle_var_dec(child_id, scope),
+          OperationType::ClassVarDec(scope) => {
+            self.handle_var_dec(child_id, scope);
+          }
           OperationType::SubroutineDec(subroutine_type) => {
-            self.handle_subroutine(child_id, subroutine_type)
+            self.handle_subroutine(child_id, subroutine_type);
           }
           OperationType::Bracket(_) => (),
-          _ => panic!("{:#?}", child_data),
+          _ => panic!("Failed to compile class at {:#?}", child_data),
         }
         child_node = next_child;
       } else {
@@ -96,21 +104,19 @@ impl CodeWriter {
     match subroutine_t {
       SubroutineType::Constructor => {
         self.class_symbols.enable_field();
-        self
-          .vm_writer
-          .generate_alloc_this(self.class_symbols.scope_item_count(VarScope::Field));
         self.block_return = true;
-        self.handle_subroutine_body(func_body, func_name);
+        self.handle_subroutine_body(func_body, func_name, true);
         self.block_return = false;
         self.vm_writer.generate_return_this();
       }
       SubroutineType::Function => {
+        // Function don't have access to field.
         self.class_symbols.disable_field();
-        self.handle_subroutine_body(func_body, func_name);
+        self.handle_subroutine_body(func_body, func_name, false);
       }
       SubroutineType::Method => {
         self.class_symbols.enable_field();
-        self.handle_subroutine_body(func_body, func_name);
+        self.handle_subroutine_body(func_body, func_name, false);
       }
     };
 
@@ -122,7 +128,7 @@ impl CodeWriter {
    *    local var dec *
    *    statements
    */
-  fn handle_subroutine_body(&mut self, root: NodeId, func_name: String) {
+  fn handle_subroutine_body(&mut self, root: NodeId, func_name: String, is_constructor: bool) {
     let mut children = self.op_tree.get_children(root);
     // Bracket
     children.next();
@@ -140,15 +146,18 @@ impl CodeWriter {
             if has_statements {
               panic!("Local var declaration after statements.");
             }
-            var_cnt += 1;
-
-            self.handle_var_dec(child_id, VarScope::Variable)
+            var_cnt += self.handle_var_dec(child_id, VarScope::Variable);
           }
           OperationType::Statements => {
             if has_statements {
               panic!("multiple statements in one function.");
             }
             self.vm_writer.write_func(func_name.clone(), var_cnt);
+            if is_constructor {
+              self
+                .vm_writer
+                .generate_alloc_this(self.class_symbols.scope_item_count(VarScope::Field));
+            }
             has_statements = true;
             self.handle_statements(child_id)
           }
@@ -166,7 +175,7 @@ impl CodeWriter {
    *    var type
    *    var name *
    */
-  fn handle_var_dec(&mut self, root: NodeId, scope: VarScope) {
+  fn handle_var_dec(&mut self, root: NodeId, scope: VarScope) -> usize {
     let mut children = self.op_tree.get_children(root);
     let var_type_node = children.next().unwrap();
     let var_type = match self.get_node(var_type_node).get() {
@@ -178,9 +187,10 @@ impl CodeWriter {
     let var_name_list = self.get_node(var_name_list).get().clone();
     match var_name_list {
       OperationType::VarNameList(names) => {
-        for name in names {
+        for name in &names {
           self.insert_symbol(name.clone(), var_type.clone(), scope.clone());
         }
+        names.len()
       }
       _ => panic!(""),
     }
@@ -290,6 +300,7 @@ impl CodeWriter {
    */
   fn handle_do_statement(&mut self, root: NodeId) {
     self.generate_subroutine_call(root);
+    self.vm_writer.write_pop(SegmentType::Temp, 0);
   }
 
   /**
@@ -325,23 +336,27 @@ impl CodeWriter {
     children.next();
     // Statements
     let if_body = children.next().unwrap();
+    let if_failed_label = format!("IFFAILEDLABEL{}", self.if_count);
+    let if_end_label = format!("IFENDLABEL{}", self.if_count);
+    self.if_count += 1;
+
     if let Some(_) = children.next() {
       children.next();
       let else_body = children.next().unwrap();
       self.generate_expression(condition);
-      self.vm_writer.write_arithmetic('^');
-      self.vm_writer.write_if("IFFAILEDLABEL".to_string());
+      self.vm_writer.write_arithmetic('~');
+      self.vm_writer.write_if(if_failed_label.clone());
       self.handle_statements(if_body);
-      self.vm_writer.write_goto("IFENDLABEL".to_string());
-      self.vm_writer.write_label("IFFAILEDLABEL".to_string());
+      self.vm_writer.write_goto(if_end_label.clone());
+      self.vm_writer.write_label(if_failed_label);
       self.handle_statements(else_body);
-      self.vm_writer.write_label("IFENDLABEL".to_string());
+      self.vm_writer.write_label(if_end_label);
     } else {
       self.generate_expression(condition);
-      self.vm_writer.write_arithmetic('^');
-      self.vm_writer.write_if("IFFAILEDLABEL".to_string());
+      self.vm_writer.write_arithmetic('~');
+      self.vm_writer.write_if(if_failed_label.clone());
       self.handle_statements(if_body);
-      self.vm_writer.write_label("IFFAILEDLABEL".to_string());
+      self.vm_writer.write_label(if_failed_label);
     }
   }
 
@@ -367,14 +382,18 @@ impl CodeWriter {
     // Bracket {
     children.next();
     let statement = children.next().unwrap();
-    self.vm_writer.write_label("WHILESTART".to_string());
+    let while_start_label = format!("WHILESTART{}", self.while_count);
+    let while_end_label = format!("WHILEEND{}", self.while_count);
+    self.while_count += 1;
+    self.vm_writer.write_label(while_start_label.clone());
     // expression
     self.generate_expression(condition);
-    self.vm_writer.write_if("WHILEEND".to_string());
+    self.vm_writer.write_arithmetic('~');
+    self.vm_writer.write_if(while_end_label.clone());
     // statements
     self.handle_statements(statement);
-    self.vm_writer.write_goto("WHILESTART".to_string());
-    self.vm_writer.write_label("WHILEEND".to_string());
+    self.vm_writer.write_goto(while_start_label);
+    self.vm_writer.write_label(while_end_label);
   }
 
   /**
@@ -388,14 +407,16 @@ impl CodeWriter {
     if self.block_return {
       return;
     }
-    let first_child = self.op_tree.get_next_n_sub(root, 1);
-    if let Some(first_child) = first_child {
+    let mut children = self.op_tree.get_children(root);
+    if let Some(first_child) = children.next() {
       let first_child_node = self.get_node(first_child);
+      // println!("return {:?}", first_child_node.get());
       match first_child_node.get() {
-        OperationType::Expression => true,
+        OperationType::Expression => {
+          self.generate_expression(first_child);
+        }
         _ => panic!(""),
       };
-      self.generate_expression(first_child);
     } else {
       self.vm_writer.write_push(SegmentType::Constant, 0);
     }
@@ -500,7 +521,21 @@ impl CodeWriter {
             self.vm_writer.write_push(SegmentType::Constant, constant);
           }
           ConstantType::String(s) => {
-            // TODO string constant
+            let s_const = s.clone();
+            self
+              .vm_writer
+              .write_push(SegmentType::Constant, s_const.len());
+            self.vm_writer.write_call("String.new".to_string(), 1);
+            self.vm_writer.write_pop(SegmentType::Temp, 2);
+            for c in s_const.as_bytes() {
+              self.vm_writer.write_push(SegmentType::Temp, 2);
+              self
+                .vm_writer
+                .write_push(SegmentType::Constant, *c as usize);
+              self
+                .vm_writer
+                .write_call("String.appendChar".to_string(), 2);
+            }
           }
           ConstantType::KeyWord(k) => {
             if k == "true" {
@@ -557,6 +592,7 @@ impl CodeWriter {
    */
   fn generate_subroutine_call(&mut self, root: NodeId) {
     let mut children = self.op_tree.get_children(root);
+    let mut this_changed = false;
     let subroutine_call_node = children.next().unwrap();
     let expressions = children.skip(1).next().unwrap();
     let subroutine_call = match self.get_node(subroutine_call_node).get().clone() {
@@ -565,21 +601,30 @@ impl CodeWriter {
           let may_var = self.get_variable(&first_name);
           if may_var.is_some() {
             let var = may_var.unwrap().clone();
+            // TODO store this pointer at temp 1, this may crash when func call stack is deeper than 2.
+            self.vm_writer.write_push(SegmentType::Pointer, 0);
+            self.vm_writer.write_pop(SegmentType::Temp, 1);
             self
               .vm_writer
               .write_push(var.get_kind().into(), var.get_idx());
+            self.vm_writer.write_pop(SegmentType::Pointer, 0);
+            this_changed = true;
             format!("{}.{}", var.get_type(), second_name)
           } else {
             format!("{}.{}", first_name, second_name)
           }
         }
-        None => second_name.clone(),
+        None => format!("{}.{}", self.class_name.as_ref().unwrap(), second_name),
       },
       _ => panic!(""),
     };
     let argc = self.handle_expression_list(expressions);
 
     self.vm_writer.write_call(subroutine_call, argc);
+    if this_changed {
+      self.vm_writer.write_push(SegmentType::Temp, 1);
+      self.vm_writer.write_pop(SegmentType::Pointer, 0);
+    }
   }
 
   fn get_variable(&self, name: &String) -> Option<&SymbolItem> {
