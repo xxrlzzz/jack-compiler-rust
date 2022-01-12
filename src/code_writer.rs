@@ -83,7 +83,8 @@ impl CodeWriter {
    */
   fn handle_subroutine(&mut self, root: NodeId, subroutine_t: SubroutineType) {
     let mut children = self.op_tree.get_children(root).clone();
-    let ret_type = match self.get_node(children.next().unwrap()).get() {
+    // TODO: Add function name table for class.
+    let _ret_type = match self.get_node(children.next().unwrap()).get() {
       OperationType::Type(type_name, _) => type_name,
       OperationType::Void => "void",
       _ => panic!(""),
@@ -100,7 +101,7 @@ impl CodeWriter {
       _ => panic!(""),
     };
     let func_body = children.next().unwrap();
-    let argc = self.handle_parameter_list(parameter_list_id);
+    let _argc = self.handle_parameter_list(parameter_list_id);
     match subroutine_t {
       SubroutineType::Constructor => {
         self.class_symbols.enable_field();
@@ -257,7 +258,7 @@ impl CodeWriter {
       self
         .func_symbols
         .push_item(var_name, var_type, VarScope::Argument);
-      if let Some(concat) = may_child_node {
+      if let Some(_) = may_child_node {
         may_child_node = children.next();
       } else {
         break;
@@ -444,16 +445,14 @@ impl CodeWriter {
         let array_index_node = children.next().unwrap();
         children.next();
         let right_expression_node = children.next().unwrap();
+        self.generate_expression(right_expression_node);
         self.generate_expression(array_index_node);
         self.vm_writer.write_push(
           SegmentType::from(var_name_item.get_kind()),
           var_name_item.get_idx(),
         );
         self.vm_writer.write_arithmetic('+');
-        self.generate_expression(right_expression_node);
-        self.vm_writer.write_pop(SegmentType::Temp, 0);
         self.vm_writer.write_pop(SegmentType::Pointer, 1);
-        self.vm_writer.write_push(SegmentType::Temp, 0);
         self.vm_writer.write_pop(SegmentType::That, 0);
       }
       OperationType::Op('=') => {
@@ -589,26 +588,27 @@ impl CodeWriter {
    *    1. class name.function name
    *    2. function name
    *    ( expression list )
+   *  note:
+   *    Instead push this pointer for method call, we stash this pointer in to stack,
+   *    and set up this pointer for method automatically. When method returned, restore
+   *    original this pointer back.
+   *    (We treat a [local variable name.function name] as method in here.)
    */
   fn generate_subroutine_call(&mut self, root: NodeId) {
     let mut children = self.op_tree.get_children(root);
-    let mut this_changed = false;
     let subroutine_call_node = children.next().unwrap();
     let expressions = children.skip(1).next().unwrap();
+    let mut may_var: Option<VariableSymbolItem> = None;
     let subroutine_call = match self.get_node(subroutine_call_node).get().clone() {
       OperationType::SubroutineCall(first_name, second_name) => match first_name {
         Some(first_name) => {
-          let may_var = self.get_variable(&first_name);
-          if may_var.is_some() {
-            let var = may_var.unwrap().clone();
-            // TODO store this pointer at temp 1, this may crash when func call stack is deeper than 2.
+          let tmp_may_var = self.get_variable(&first_name);
+          if tmp_may_var.is_some() {
+            let var = tmp_may_var.unwrap().clone();
+            may_var = Some(var.clone());
+
+            // Stash this pointer into stack.
             self.vm_writer.write_push(SegmentType::Pointer, 0);
-            self.vm_writer.write_pop(SegmentType::Temp, 1);
-            self
-              .vm_writer
-              .write_push(var.get_kind().into(), var.get_idx());
-            self.vm_writer.write_pop(SegmentType::Pointer, 0);
-            this_changed = true;
             format!("{}.{}", var.get_type(), second_name)
           } else {
             format!("{}.{}", first_name, second_name)
@@ -619,15 +619,24 @@ impl CodeWriter {
       _ => panic!(""),
     };
     let argc = self.handle_expression_list(expressions);
-
-    self.vm_writer.write_call(subroutine_call, argc);
-    if this_changed {
-      self.vm_writer.write_push(SegmentType::Temp, 1);
+    if may_var.is_some() {
+      let var = may_var.as_ref().unwrap();
+      // Set up this pointer for function call.
+      self
+        .vm_writer
+        .write_push(var.get_kind().into(), var.get_idx());
       self.vm_writer.write_pop(SegmentType::Pointer, 0);
+    }
+    self.vm_writer.write_call(subroutine_call, argc);
+    if may_var.is_some() {
+      // Restore this pointer from stack .
+      self.vm_writer.write_pop(SegmentType::Temp, 1);
+      self.vm_writer.write_pop(SegmentType::Pointer, 0);
+      self.vm_writer.write_push(SegmentType::Temp, 1);
     }
   }
 
-  fn get_variable(&self, name: &String) -> Option<&SymbolItem> {
+  fn get_variable(&self, name: &String) -> Option<&VariableSymbolItem> {
     let r = self.func_symbols.find_item_by_name(name);
     if r.is_some() {
       return r;

@@ -1,14 +1,14 @@
 use crate::operation::VarScope;
 
 #[derive(Debug, Clone)]
-pub struct SymbolItem {
+pub struct VariableSymbolItem {
   name: String,
   v_type: String,
   kind: VarScope,
   index: usize,
 }
 
-impl SymbolItem {
+impl VariableSymbolItem {
   pub fn new(name: String, v_type: String, kind: VarScope, index: usize) -> Self {
     Self {
       name,
@@ -31,7 +31,7 @@ impl SymbolItem {
   }
 }
 
-pub struct SymbolTable(Vec<SymbolItem>, bool);
+pub struct SymbolTable(Vec<VariableSymbolItem>, bool);
 
 impl SymbolTable {
   pub fn new() -> Self {
@@ -50,11 +50,11 @@ impl SymbolTable {
   }
 
   pub fn push_item(&mut self, name: String, v_type: String, kind: VarScope) {
-    let item = SymbolItem::new(name, v_type, kind.clone(), self.scope_item_count(kind));
+    let item = VariableSymbolItem::new(name, v_type, kind.clone(), self.scope_item_count(kind));
     self.0.push(item);
   }
 
-  pub fn find_item_by_name(&self, name: &String) -> Option<&SymbolItem> {
+  pub fn find_item_by_name(&self, name: &String) -> Option<&VariableSymbolItem> {
     for item in &self.0 {
       if self.1 && item.kind == VarScope::Field {
         continue;

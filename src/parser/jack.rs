@@ -36,14 +36,28 @@ impl Parser {
     self.last_token_descriptor = Some(dec);
   }
 
+  fn return_token_from_buf(&mut self, take: bool) -> Option<Token> {
+    let r = self.token_buf[self.token_buf_idx].clone();
+    self.update_token_descriptor(&r);
+    if take {
+      self.token_buf_idx += 1;
+    }
+    return Some(r);
+  }
+
+  fn read_line(&mut self, buf: &mut String) -> bool {
+    let len = self.reader.read_line(buf).expect("read file failed");
+    self.cur_line += 1;
+    if len == 0 {
+      self.end = true;
+      return false;
+    }
+    return true;
+  }
+
   fn forward(&mut self, take: bool) -> Option<Token> {
     if self.token_buf.len() > self.token_buf_idx {
-      let r = self.token_buf[self.token_buf_idx].clone();
-      self.update_token_descriptor(&r);
-      if take {
-        self.token_buf_idx += 1;
-      }
-      return Some(r);
+      return self.return_token_from_buf(take);
     }
     if self.end {
       return None;
@@ -52,14 +66,10 @@ impl Parser {
     let mut is_multiline_comment = false;
     loop {
       buf.clear();
-      let len = self.reader.read_line(&mut buf).expect("read file failed");
-      self.cur_line += 1;
-      if len == 0 {
-        self.end = true;
+      if !self.read_line(&mut buf) {
         return None;
       }
       let line = buf.trim();
-      // println!("DEBUG {} line of file: {}", self.cur_line, line);
       let tokens = Token::from_line(line, &mut is_multiline_comment);
       if tokens.is_err() {
         panic!("{}", tokens.unwrap_err());
@@ -68,10 +78,8 @@ impl Parser {
       if self.token_buf.len() == 0 {
         continue;
       }
-      self.token_buf_idx = if take { 1 } else { 0 };
-      let token = self.token_buf[0].clone();
-      self.update_token_descriptor(&token);
-      return Some(token);
+      self.token_buf_idx = 0;
+      return self.return_token_from_buf(take);
     }
   }
 

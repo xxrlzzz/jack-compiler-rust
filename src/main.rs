@@ -30,10 +30,11 @@ fn tokenize_one_file(file: &str, token_xml: bool, vm_xml: bool) {
     let compiler = Compiler::new_with_generator(op_tree.clone(), parser);
     if let Some(r) = compiler.run() {
       println!("compile failed {}", r);
+    } else {
+      // println!("{}", op_tree.borrow());
+      let code_writer = CodeWriter::new(&vm_file_name[..], op_tree.take());
+      code_writer.generate_vm_code();
     }
-    // println!("{}", op_tree.borrow());
-    let code_writer = CodeWriter::new(&vm_file_name[..], op_tree.take());
-    code_writer.generate_vm_code();
   }
 }
 

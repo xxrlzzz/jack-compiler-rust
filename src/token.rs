@@ -205,6 +205,12 @@ impl Token {
       let mut found = false;
       for s in KEYWORDS {
         if input_word.len() >= s.len() && *s == &input_word[0..s.len()] {
+          if input_word.len() > s.len() {
+            let next_char = input_word.chars().skip(s.len()).next();
+            if is_identifier_char(next_char.unwrap()) {
+              continue;
+            }
+          }
           res.push(Token::KeyWord(s.to_string()));
           found = true;
           idx = s.len();
