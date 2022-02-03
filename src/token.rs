@@ -1,3 +1,5 @@
+use log::debug;
+
 static KEYWORDS: &'static [&str] = &[
   "class",
   "constructor",
@@ -151,8 +153,8 @@ impl Token {
   fn from_line_without_str(input_line: &str) -> Result<Vec<Self>, String> {
     let mut res = vec![];
     for sub_token in input_line.split(' ') {
-      // println!("DEBUG sub token {}", sub_token);
-      let token = Token::from_word(sub_token);
+      debug!("sub token {}", sub_token);
+      let token = Token::from_word(sub_token.trim());
       if token.is_err() {
         return token;
       }
@@ -178,8 +180,7 @@ impl Token {
         return Ok(Token::Symbol(*s));
       }
     }
-    // println!("DEBUG {}", input_symbol);
-    return Err("Invalid symbol".to_string());
+    return Err(format!("Invalid symbol: {}", input_symbol));
   }
 
   fn from_word(input_word: &str) -> Result<Vec<Self>, String> {

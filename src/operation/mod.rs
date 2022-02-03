@@ -60,7 +60,7 @@ impl ToString for VarScope {
   }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum SubroutineType {
   Constructor,
   Function,

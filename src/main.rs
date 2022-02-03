@@ -2,10 +2,12 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use clap::Parser;
+use log::{debug, error};
 
 use jack_compiler::code_writer::CodeWriter;
 use jack_compiler::common::{new_output, panic_writer, OutputTarget};
 use jack_compiler::compiler::Compiler;
+use jack_compiler::logger;
 use jack_compiler::operation::tree::OperationTree;
 use jack_compiler::vm::vm_translator::AssembleCodeGenerator;
 use jack_compiler::xml::token_xml_generator::TokenXMLGenerator;
@@ -20,7 +22,7 @@ fn tokenize_one_file(file: &str, token_xml: bool, vm_xml: bool) {
     let out_file = String::from(file.strip_suffix(".jack").unwrap()) + ".xml.d";
     let compiler = Compiler::new(out_file.as_str(), parser);
     if let Some(r) = compiler.run() {
-      println!("compile failed {}", r);
+      error!("compile failed {}", r);
     }
   } else {
     let base_file_name = file.strip_suffix(".jack").unwrap();
@@ -29,7 +31,7 @@ fn tokenize_one_file(file: &str, token_xml: bool, vm_xml: bool) {
     let op_tree = Rc::new(RefCell::new(OperationTree::new(class_name)));
     let compiler = Compiler::new_with_generator(op_tree.clone(), parser);
     if let Some(r) = compiler.run() {
-      println!("compile failed {}", r);
+      error!("compile failed {}", r);
     } else {
       // println!("{}", op_tree.borrow());
       let code_writer = CodeWriter::new(&vm_file_name[..], op_tree.take());
@@ -48,7 +50,7 @@ fn handle_jack(file: String, token_xml: bool, vm_xml: bool) {
           let path = path.expect("Failed to read file in directory");
           let path = format!("{}", path.path().display());
           if path.ends_with(".jack") {
-            println!("DEBUG: reading file {}", path);
+            debug!("DEBUG: reading file {}", path);
             tokenize_one_file(path.as_str(), token_xml, vm_xml);
           }
         }
@@ -67,7 +69,7 @@ fn write_commands(output: OutputTarget, cmds: Vec<String>) {
   }
 }
 fn translate_one_file(file: String, out_file: OutputTarget, writer: &mut AssembleCodeGenerator) {
-  // println!("DEBUG: handle file {}", file);
+  debug!("handle file {}", file);
   let mut parser = jack_compiler::parser::hack::Parser::new(&file);
   while let Some(cmd) = parser.next() {
     let translate = writer.get_asm(cmd);
@@ -80,7 +82,6 @@ fn handle_vm(file: String) {
   let mut writer = AssembleCodeGenerator::new();
   if file.ends_with(".vm") {
     let out_file = String::from(file.strip_suffix(".vm").unwrap()) + ".asm";
-    // let mut output = BufWriter::new(File::create(out_file).expect("Open output file failed"));
     let output = new_output(&out_file[..]);
     write_commands(output.clone(), AssembleCodeGenerator::init_env());
     translate_one_file(file, output, &mut writer);
@@ -88,16 +89,22 @@ fn handle_vm(file: String) {
     // Treat file as directory
     match std::fs::read_dir(file.clone()) {
       Ok(dir) => {
-        let out_file = format!("{}.asm", file);
-        // let mut output = BufWriter::new(File::create(out_file).expect("Open output file failed"));
+        let dir_split: Vec<&str> = file.split('/').collect();
+        let out_file = if dir_split.len() == 1 {
+          format!("{}.asm", file)
+        } else {
+          let dir_name = dir_split[dir_split.len() - 2];
+          let path = &file[0..file.find(dir_name).unwrap()];
+          format!("{}{}.asm", path, dir_split[dir_split.len() - 2])
+        };
         let output = new_output(&out_file[..]);
         write_commands(output.clone(), AssembleCodeGenerator::init_env());
         write_commands(output.clone(), AssembleCodeGenerator::bootstrap());
         for path in dir {
           let path = path.expect("Failed to read file in directory");
           let path = format!("{}", path.path().display());
-          println!("DEBUG: reading file {}", path);
           if path.ends_with(".vm") {
+            debug!("reading file {}", path);
             translate_one_file(format!("{}", path), output.clone(), &mut writer);
           }
         }
@@ -124,10 +131,17 @@ struct Args {
 
   #[clap(long)]
   translate_vm: bool,
+
+  #[clap(long, default_value = "info")]
+  log_level: String,
 }
 
 fn main() {
   let args = Args::parse();
+  match logger::init(&args.log_level) {
+    Err(_) => return,
+    Ok(_) => {}
+  };
   let file = args.path;
   if args.translate_vm {
     handle_vm(file);

@@ -400,7 +400,15 @@ impl Compiler {
             return false;
           }
         } else {
-          let _w2 = RAIIWriter::new(self.generator.clone(), OperationType::VarName(identifier));
+          if self.try_take_symbol('(') {
+            let _w2 = RAIIWriter::new(self.generator.clone(), OperationType::SubroutineCall(None,identifier));
+            let _w3 = RAIIWriter::new(self.generator.clone(), OperationType::Bracket(BracketType::from_char('(')));
+            if !self.compile_expression_list() || !self.take_symbol(')') {
+              return false;
+            }
+          } else {
+            let _w2 = RAIIWriter::new(self.generator.clone(), OperationType::VarName(identifier));
+          }
         }
         true
       }

@@ -1,3 +1,5 @@
+use log::debug;
+
 #[derive(std::cmp::PartialEq, Debug, Clone)]
 pub enum CommandType {
   None,
@@ -46,7 +48,7 @@ pub struct Command {
 
 impl Command {
   pub fn from_str(cmd_str: &str) -> Self {
-    println!("DEBUG: parsed {}", cmd_str);
+    debug!("parsed {}", cmd_str);
     let mut iter = cmd_str.split_whitespace();
     let cmd = iter.next().expect("Parse error: empty command");
     let (cmd_type, arg_length) = CommandType::parse(cmd);
