@@ -30,23 +30,8 @@ impl OperationTree {
     self.root
   }
 
-  pub fn travel(&self, root: NodeId) -> indextree::Children<OperationType> {
-    root.children(&self.arena).into_iter()
-  }
-
   pub fn get_node(&self, node_id: NodeId) -> &indextree::Node<OperationType> {
     self.arena.get(node_id).unwrap()
-  }
-
-  pub fn get_next_n_sub(&self, node_id: NodeId, n: usize) -> Option<NodeId> {
-    node_id.following_siblings(&self.arena).skip(n).next()
-  }
-
-  pub fn get_following_sibling(
-    &self,
-    node_id: NodeId,
-  ) -> indextree::FollowingSiblings<OperationType> {
-    node_id.following_siblings(&self.arena)
   }
 
   pub fn get_children(&self, node: NodeId) -> indextree::Children<OperationType> {

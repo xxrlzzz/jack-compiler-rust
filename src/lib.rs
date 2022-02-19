@@ -6,7 +6,6 @@ pub mod operation;
 pub mod parser;
 pub mod symbol_table;
 pub mod token;
-pub mod token_descriptor;
 pub mod vm;
 pub mod xml;
 

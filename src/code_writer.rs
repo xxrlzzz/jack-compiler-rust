@@ -1,4 +1,4 @@
-use indextree::{Node, NodeId};
+use indextree::NodeId;
 use log::error;
 
 use crate::operation::tree::OperationTree;

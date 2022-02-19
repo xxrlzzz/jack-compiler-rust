@@ -50,7 +50,7 @@ impl SymbolTable {
   }
 
   pub fn push_item(&mut self, name: String, v_type: String, kind: VarScope) {
-    let item = VariableSymbolItem::new(name, v_type, kind.clone(), self.scope_item_count(kind));
+    let item = VariableSymbolItem::new(name, v_type, kind, self.scope_item_count(kind));
     self.0.push(item);
   }
 

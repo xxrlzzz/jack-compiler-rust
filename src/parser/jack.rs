@@ -2,8 +2,7 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::iter::Iterator;
 
-use crate::token::Token;
-use crate::token_descriptor::TokenDescriptor;
+use crate::token::{Token, TokenDescriptor};
 
 pub struct Parser {
   reader: BufReader<File>,

@@ -30,7 +30,7 @@ impl log::Log for SimpleLogger {
   fn flush(&self) {}
 }
 
-pub fn init(level_str: &str) -> Result<(), SetLoggerError> {
+pub fn setup(level_str: &str) -> Result<(), SetLoggerError> {
   let level = Level::from_str(level_str).unwrap_or(Level::Info);
   let level_filter = LevelFilter::from_str(level_str).unwrap_or(LevelFilter::Info);
   static mut LOGGER: SimpleLogger = SimpleLogger { level: Level::Info };

@@ -138,7 +138,7 @@ struct Args {
 
 fn main() {
   let args = Args::parse();
-  match logger::init(&args.log_level) {
+  match logger::setup(&args.log_level[..]) {
     Err(_) => return,
     Ok(_) => {}
   };
