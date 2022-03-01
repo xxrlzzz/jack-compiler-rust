@@ -1,6 +1,6 @@
 use crate::common::{new_output, OutputTarget};
 use crate::compiler::{WritableStack, WriteTarget};
-use crate::operation::OperationType;
+use crate::operation::{OperationType, ConstantType};
 use crate::xml::*;
 
 pub struct OperationXMLGenerator {
@@ -130,10 +130,14 @@ impl WritableStack for OperationXMLGenerator {
         self.forward_indent();
       }
       OperationType::Constant(c_type) => {
-        self.tag_indent_write(
-          format!("{}Constant", c_type.to_string()).as_str(),
-          c_type.content().as_str(),
-        );
+        if let ConstantType::KeyWord(c_type) = c_type {
+          self.tag_indent_write("keyword", c_type.to_string().as_str());
+        } else {
+          self.tag_indent_write(
+            format!("{}Constant", c_type.to_string()).as_str(),
+            c_type.content().as_str(),
+          );
+        }
       }
       OperationType::VarName(name) => {
         self.tag_indent_write("identifier", name.as_str());

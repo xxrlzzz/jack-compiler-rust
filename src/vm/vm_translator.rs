@@ -48,10 +48,11 @@ impl AssembleCodeGenerator {
 
   pub fn init_env() -> Vec<String> {
     vec![
-      String::from("@256"),
+      String::from("@261"),
+      // String::from("@256"),
       String::from("D=A"),
-      // String::from("@R0"),
-      // String::from("M=D"),
+      String::from("@R0"),
+      String::from("M=D"),
       // String::from("@-1"),
       // String::from("D=A"),
       // String::from("@R1"),
@@ -129,7 +130,7 @@ impl AssembleCodeGenerator {
     assert!(cmd.cmd_type() == CommandType::Push || cmd.cmd_type() == CommandType::Pop);
     let seg = SegmentType::new(&cmd.arg1().unwrap()[..]);
     let arg2 = cmd.arg2();
-    let seg_str = format!("@{}", seg.to_vm_string());
+    let seg_str = format!("@{}", seg.to_asm_string());
     if cmd.cmd_type() == CommandType::Push {
       // load data from segment to sp
 

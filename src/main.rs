@@ -15,11 +15,11 @@ use jack_compiler::xml::token_xml_generator::TokenXMLGenerator;
 fn tokenize_one_file(file: &str, token_xml: bool, vm_xml: bool) {
   let parser = jack_compiler::parser::jack::Parser::new(file);
   if token_xml {
-    let out_file = String::from(file.strip_suffix(".jack").unwrap()) + "T.xml.d";
+    let out_file = String::from(file.strip_suffix(".jack").unwrap()) + "T.xml";
     let generator = TokenXMLGenerator::new(out_file.as_str(), parser);
     generator.run();
   } else if vm_xml {
-    let out_file = String::from(file.strip_suffix(".jack").unwrap()) + ".xml.d";
+    let out_file = String::from(file.strip_suffix(".jack").unwrap()) + ".xml";
     let compiler = Compiler::new(out_file.as_str(), parser);
     if let Some(r) = compiler.run() {
       error!("compile failed {}", r);
@@ -83,20 +83,14 @@ fn handle_vm(file: String) {
   if file.ends_with(".vm") {
     let out_file = String::from(file.strip_suffix(".vm").unwrap()) + ".asm";
     let output = new_output(&out_file[..]);
-    write_commands(output.clone(), AssembleCodeGenerator::init_env());
+    // write_commands(output.clone(), AssembleCodeGenerator::init_env());
     translate_one_file(file, output, &mut writer);
   } else {
     // Treat file as directory
     match std::fs::read_dir(file.clone()) {
       Ok(dir) => {
-        let dir_split: Vec<&str> = file.split('/').collect();
-        let out_file = if dir_split.len() == 1 {
-          format!("{}.asm", file)
-        } else {
-          let dir_name = dir_split[dir_split.len() - 2];
-          let path = &file[0..file.find(dir_name).unwrap()];
-          format!("{}{}.asm", path, dir_split[dir_split.len() - 2])
-        };
+        let dirname = file.rsplit('/').next();
+        let out_file = format!("{}/{}.asm", file.clone(), dirname.unwrap());
         let output = new_output(&out_file[..]);
         write_commands(output.clone(), AssembleCodeGenerator::init_env());
         write_commands(output.clone(), AssembleCodeGenerator::bootstrap());
